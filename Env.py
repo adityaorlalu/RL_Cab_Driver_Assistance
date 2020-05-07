@@ -22,14 +22,21 @@ Location λ(of Poisson Distribution)
     3       7
     4       8
 """
+# below variable contains the poisson mean mapping with location in key-value pair
 poisson_mean = { '0' : 2, '1' : 12, '2' : 4, '3' : 7, '4' : 8 }
 
 class CabDriver():
 
     def __init__(self):
         """initialise your state and define your action space and state space"""
+        # action_space variable contains all the allowed/possible action an agent can take.
+        # This excludes actions space like [(1,1), (2,2), (3,3), (4,4)]
         self.action_space = tuple([(0, 0)]) + tuple(((x, y) for x in range(m) for y in range(m) if x != y))
+
+        # state_space variable contains all the possible state in which agent can be.
         self.state_space = tuple(((x, y, z) for x in range(m) for y in range(t) for z in range(d)))
+
+        # randomly choosing a state from state_space
         self.state_init = random.choice(self.state_space)
 
         # Start the first round
@@ -37,18 +44,22 @@ class CabDriver():
 
 
     ## Encoding state (or state-action) for NN input
-
     def state_encod_arch1(self, state):
         """
         convert the state into a vector so that it can be fed to the NN. 
         This method converts a given state into a vector format. 
         Hint: The vector is of size m + t + d.
         """
-        curr_loc, curr_hour, curr_day = state
+        # based on current location, hour and day, creates a vector representation
+        (curr_loc, curr_hour, curr_day) = state
+        # location vector
         loc_vector = tuple((0 if x != curr_loc else 1 for x in range(m)))
+        # hour vector
         hour_vector = tuple((0 if x != curr_hour else 1 for x in range(t)))
+        # week day vector
         week_day_vector = tuple((0 if x != curr_day else 1 for x in range(d)))
 
+        # combining all the vector in order of location, hour and week day
         state_encod = loc_vector + hour_vector + week_day_vector
 
         return state_encod
@@ -58,28 +69,44 @@ class CabDriver():
     ## Getting number of requests
 
     def requests(self, state):
-        """Determining the number of requests basis the location. 
-        Use the table specified in the MDP and complete for rest of the locations"""
-        location = state[0]
-
+        """
+        Determining the number of requests basis the location. 
+        Use the table specified in the MDP and complete for rest of the locations
+        """
+        # get location from state
+        (location, _, _) = state
+        # using possion_mean to get the mean value for the location.
+        # This was done for faster processing rather than using if-else check
         requests = np.random.poisson(poisson_mean.get(str(location)))
 
+        # make sure agents doesn't get request more than 15 
         if requests > 15:
             requests = 15
 
+        # based on number of request, take those many actions from the action space. This excludes agent no accepting any request
         actions = random.sample(self.action_space[1:], requests) #(0,0) is not considered as customer request
+        # agent can choose to not accept any request and go offline. hence adding (0,0) action representing agent offline action
         actions.append((0, 0))
 
         return tuple(actions)
 
 
     def get_updated_hour_and_day(self, present_hour, present_day, additional_hours):
+        """
+        Purpose of this method to update agent present working hours and day to new working hours and days
+        """
+        # updated hours after accounting for agent droping customer to new location
         updated_hour = present_hour + additional_hours
+        # updating week day to present day. 
+        # This will incremented by 1 in case agent drop time has passed next week day
+        # This will be updated 0 when agent drop time has passed next week day and week day is 6
         updated_day = present_day
 
+        # if hours are more than 23, update the update_hours to next day hour and also increment the udpate_day
         if updated_hour >= t :
             updated_hour = updated_hour % t
             updated_day = updated_day + 1
+            # incase present_day week was 6 and agent drop time has passed present day then make week_day to 0
             if updated_day == d:
                 updated_day = 0
         
@@ -88,18 +115,26 @@ class CabDriver():
 
     def reward_func(self, state, action, Time_matrix):
         """Takes in state, action and Time-matrix and returns the reward"""
-        curr_loc, curr_hour, curr_day = state
-        pickup_loc, drop_loc = action
+        # initialise the variables
+        (curr_loc, curr_hour, curr_day) = state
+        (pickup_loc, drop_loc) = action
 
         if action in [(0, 0)] :
+            # incase agent choose to go offline by choosing action (0,0)
+            # reward would -C
             reward = -C
         else:
+            # getting time required for agent to reach to customer pickup location
+            # in case agent and customer is on same location then this would be zero. Time_matrix already takes cares.
             curr_to_pickup_loc_time = Time_matrix[curr_loc][pickup_loc][curr_hour][curr_day]
 
+            # considering agent location to pickup location and get updated hours and week day
             ride_start_hour, ride_day = self.get_updated_hour_and_day(curr_hour, curr_day, curr_to_pickup_loc_time)
 
+            # getting time required agent to reach to customer drop location
             pickup_to_drop_loc_time = Time_matrix[pickup_loc][drop_loc][ride_start_hour][ride_day]
 
+            # calculating the reward
             reward = (R * pickup_to_drop_loc_time) - (C * (curr_to_pickup_loc_time + pickup_to_drop_loc_time))
 
         return reward
@@ -107,23 +142,35 @@ class CabDriver():
 
     def next_state_func(self, state, action, Time_matrix):
         """Takes state and action as input and returns next state"""
+        # initialise the variables
         curr_loc, curr_hour, curr_day = state
         pickup_loc, drop_loc = action
 
         if action is [(0, 0)]:
+            # incase agent choose to go offline by choosing action (0,0)
+            # update hour and week day by accounting for 1 hour no work. location would remain same
             updated_hour, updated_day = self.get_updated_hour_and_day(curr_hour, curr_day, 1)
+            
+            # location remain same, just updating hour and week day
+            next_state = (curr_loc, updated_hour, updated_day)
         else:
+            # getting time required for agent to reach to customer pickup location
+            # in case agent and customer is on same location then this would be zero. Time_matrix already takes cares.
             curr_to_pickup_loc_time = Time_matrix[curr_loc][pickup_loc][curr_hour][curr_day]
 
+            # considering agent location to pickup location and get updated hours and week day
             ride_start_hour, ride_day = self.get_updated_hour_and_day(curr_hour, curr_day, curr_to_pickup_loc_time)
 
+            # getting time required agent to reach to customer drop location
             pickup_to_drop_loc_time = Time_matrix[pickup_loc][drop_loc][ride_start_hour][ride_day]
 
+            # considering agent location to drop location and get updated hours and week day
             updated_hour, updated_day = self.get_updated_hour_and_day(ride_start_hour, ride_day, pickup_to_drop_loc_time)      
             
-        next_state = (curr_loc, updated_hour, updated_day)
+            # location changes to customer drop location and also updating hour and weeks
+            next_state = (drop_loc, updated_hour, updated_day)
+        
         return next_state
-
 
 
     def reset(self):
