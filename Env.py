@@ -4,6 +4,9 @@ import numpy as np
 import math
 import random
 
+# random.seed(0)
+# np.random.seed(0)
+
 # Defining hyperparameters
 m = 5 # number of cities, ranges from 1 ..... m
 t = 24 # number of hours, ranges from 0 .... t-1
@@ -74,13 +77,13 @@ class CabDriver():
         updated_hour = present_hour + additional_hours
         updated_day = present_day
 
-        if updated_hour > t :
+        if updated_hour >= t :
             updated_hour = updated_hour % t
             updated_day = updated_day + 1
-            if updated_day > d :
+            if updated_day == d:
                 updated_day = 0
         
-        return (updated_hour, updated_day)
+        return (int(updated_hour), updated_day)
 
 
     def reward_func(self, state, action, Time_matrix):
@@ -88,7 +91,7 @@ class CabDriver():
         curr_loc, curr_hour, curr_day = state
         pickup_loc, drop_loc = action
 
-        if action is (0,0) :
+        if action in [(0, 0)] :
             reward = -C
         else:
             curr_to_pickup_loc_time = Time_matrix[curr_loc][pickup_loc][curr_hour][curr_day]
@@ -107,7 +110,7 @@ class CabDriver():
         curr_loc, curr_hour, curr_day = state
         pickup_loc, drop_loc = action
 
-        if action is (0, 0):
+        if action is [(0, 0)]:
             updated_hour, updated_day = self.get_updated_hour_and_day(curr_hour, curr_day, 1)
         else:
             curr_to_pickup_loc_time = Time_matrix[curr_loc][pickup_loc][curr_hour][curr_day]
@@ -125,3 +128,40 @@ class CabDriver():
 
     def reset(self):
         return self.action_space, self.state_space, self.state_init
+
+
+
+####################################
+# Unit Testing 
+####################################
+if __name__ == "__main__":
+    env = CabDriver()
+    Time_matrix = np.load("TM.npy")
+
+    action_space, state_space, initial_state = env.reset()
+    # print('Cab Driver Action Space:[{}]'.format(action_space))
+    # print('Cab Driver State Space:[{}]'.format(state_space))
+    print('Cab Driver random initial Space:[{}] \n'.format(initial_state))
+
+
+    print('Cab Driver Request API:')
+    for x in range(10):
+        print(env.requests(initial_state))
+    print()
+
+    print('Cab Driver State Vector: [{}]\n'.format(env.state_encod_arch1(initial_state)))
+
+    print('Cab Driver rewards on action:')
+    for x in range(30):
+        action = random.choice(env.requests(initial_state))
+        print('Action:[{}] Reward:[{}]'.format(action, env.reward_func(initial_state, action, Time_matrix)))
+    print()
+
+    print('Cab Driver action and new state:')
+    state = initial_state
+    action = random.choice(env.requests(initial_state))
+    for x in range(30):
+        state = env.next_state_func(state, action, Time_matrix)
+        print('Action:[{}] Next State:[{}]'.format(action, state))
+        action = random.choice(env.requests(state))
+    print()
