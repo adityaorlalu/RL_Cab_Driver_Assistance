@@ -91,12 +91,12 @@ class CabDriver():
         return tuple(actions)
 
 
-    def get_updated_hour_and_day(self, present_hour, present_day, additional_hours):
+    def get_updated_hour_and_day(self, present_hour, present_day, working_hours):
         """
         Purpose of this method to update agent present working hours and day to new working hours and days
         """
         # updated hours after accounting for agent droping customer to new location
-        updated_hour = present_hour + additional_hours
+        updated_hour = present_hour + working_hours
         # updating week day to present day. 
         # This will incremented by 1 in case agent drop time has passed next week day
         # This will be updated 0 when agent drop time has passed next week day and week day is 6
@@ -113,27 +113,13 @@ class CabDriver():
         return (int(updated_hour), updated_day)
 
 
-    def reward_func(self, state, action, Time_matrix):
+    def reward_func(self, state, action, curr_to_pickup_loc_time, pickup_to_drop_loc_time):
         """Takes in state, action and Time-matrix and returns the reward"""
-        # initialise the variables
-        (curr_loc, curr_hour, curr_day) = state
-        (pickup_loc, drop_loc) = action
-
         if action in [(0, 0)] :
             # incase agent choose to go offline by choosing action (0,0)
             # reward would -C
             reward = -C
         else:
-            # getting time required for agent to reach to customer pickup location
-            # in case agent and customer is on same location then this would be zero. Time_matrix already takes cares.
-            curr_to_pickup_loc_time = Time_matrix[curr_loc][pickup_loc][curr_hour][curr_day]
-
-            # considering agent location to pickup location and get updated hours and week day
-            ride_start_hour, ride_day = self.get_updated_hour_and_day(curr_hour, curr_day, curr_to_pickup_loc_time)
-
-            # getting time required agent to reach to customer drop location
-            pickup_to_drop_loc_time = Time_matrix[pickup_loc][drop_loc][ride_start_hour][ride_day]
-
             # calculating the reward
             reward = (R * pickup_to_drop_loc_time) - (C * (curr_to_pickup_loc_time + pickup_to_drop_loc_time))
 
@@ -141,12 +127,16 @@ class CabDriver():
 
 
     def next_state_func(self, state, action, Time_matrix):
-        """Takes state and action as input and returns next state"""
+        """
+        Takes state and action as input and 
+        returns next_state, pickup time and drop time
+        """
         # initialise the variables
         curr_loc, curr_hour, curr_day = state
         pickup_loc, drop_loc = action
+        curr_to_pickup_loc_time, pickup_to_drop_loc_time = (None, None)
 
-        if action is [(0, 0)]:
+        if action in [(0, 0)]:
             # incase agent choose to go offline by choosing action (0,0)
             # update hour and week day by accounting for 1 hour no work. location would remain same
             updated_hour, updated_day = self.get_updated_hour_and_day(curr_hour, curr_day, 1)
@@ -170,7 +160,20 @@ class CabDriver():
             # location changes to customer drop location and also updating hour and weeks
             next_state = (drop_loc, updated_hour, updated_day)
         
-        return next_state
+        return (next_state, curr_to_pickup_loc_time, pickup_to_drop_loc_time)
+
+    
+    def step(self, state, action, Time_matrix):
+        (next_state, curr_to_pickup_loc_time, pickup_to_drop_loc_time) = self.next_state_func(state, action, Time_matrix)
+        reward = self.reward_func(state, action, curr_to_pickup_loc_time, pickup_to_drop_loc_time)
+
+        if action in [(0, 0)]:
+            total_worked_hours = 1
+        else:
+            total_worked_hours = curr_to_pickup_loc_time + pickup_to_drop_loc_time
+
+        return (next_state, reward, total_worked_hours)
+
 
 
     def reset(self):
@@ -197,18 +200,14 @@ if __name__ == "__main__":
     print()
 
     print('Cab Driver State Vector: [{}]\n'.format(env.state_encod_arch1(initial_state)))
+    print('Cab Driver State Vector Length: [{}]\n'.format(len(env.state_encod_arch1(initial_state))))
 
-    print('Cab Driver rewards on action:')
-    for x in range(30):
-        action = random.choice(env.requests(initial_state))
-        print('Action:[{}] Reward:[{}]'.format(action, env.reward_func(initial_state, action, Time_matrix)))
-    print()
 
     print('Cab Driver action and new state:')
     state = initial_state
     action = random.choice(env.requests(initial_state))
     for x in range(30):
-        state = env.next_state_func(state, action, Time_matrix)
-        print('Action:[{}] Next State:[{}]'.format(action, state))
+        (state, reward, time) = env.step(state, action, Time_matrix)
+        print('Action:[{}] Next State:[{}] Reward:[{}] time:[{}]'.format(action, state, reward, time))
         action = random.choice(env.requests(state))
     print()
