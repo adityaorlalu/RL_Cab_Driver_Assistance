@@ -79,16 +79,18 @@ class CabDriver():
         # This was done for faster processing rather than using if-else check
         requests = np.random.poisson(poisson_mean.get(str(location)))
 
+        if requests == 0:
+            requests = poisson_mean.get(str(location))
+
         # make sure agents doesn't get request more than 15 
         if requests > 15:
             requests = 15
 
-        # based on number of request, take those many actions from the action space. This excludes agent no accepting any request
-        actions = random.sample(self.action_space[1:], requests) #(0,0) is not considered as customer request
-        # agent can choose to not accept any request and go offline. hence adding (0,0) action representing agent offline action
-        actions.append((0, 0))
+        possible_actions_index = random.sample(range(1, (m-1) * m + 1), requests)
+        actions = [self.action_space[i] for i in possible_actions_index]
+        actions.append((0,0))
 
-        return tuple(actions)
+        return (tuple(possible_actions_index), tuple(actions))
 
 
     def get_updated_hour_and_day(self, present_hour, present_day, working_hours):
@@ -209,9 +211,10 @@ if __name__ == "__main__":
 
     print('Cab Driver action and new state:')
     state = initial_state
-    action = random.choice(env.requests(initial_state))
+    action = random.choice(env.requests(initial_state)[1])
     for x in range(30):
+        (_, actions) = env.requests(initial_state)
+        action = random.choice(actions)
         (state, reward, time) = env.step(state, action, Time_matrix)
         print('Action:[{}] Next State:[{}] Reward:[{}] time:[{}]'.format(action, state, reward, time))
-        action = random.choice(env.requests(state))
     print()
