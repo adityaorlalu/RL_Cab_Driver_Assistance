@@ -113,9 +113,9 @@ class CabDriver():
         return (int(updated_hour), updated_day)
 
 
-    def reward_func(self, state, action, curr_to_pickup_loc_time, pickup_to_drop_loc_time):
+    def reward_func(self, isActionOffline, curr_to_pickup_loc_time, pickup_to_drop_loc_time):
         """Takes in state, action and Time-matrix and returns the reward"""
-        if action in [(0, 0)] :
+        if isActionOffline :
             # incase agent choose to go offline by choosing action (0,0)
             # reward would -C
             reward = -C
@@ -132,9 +132,9 @@ class CabDriver():
         returns next_state, pickup time and drop time
         """
         # initialise the variables
-        curr_loc, curr_hour, curr_day = state
-        pickup_loc, drop_loc = action
-        curr_to_pickup_loc_time, pickup_to_drop_loc_time = (None, None)
+        (curr_loc, curr_hour, curr_day) = state
+        (pickup_loc, drop_loc) = action
+        (curr_to_pickup_loc_time, pickup_to_drop_loc_time) = (None, None)
 
         if action in [(0, 0)]:
             # incase agent choose to go offline by choosing action (0,0)
@@ -165,12 +165,16 @@ class CabDriver():
     
     def step(self, state, action, Time_matrix):
         (next_state, curr_to_pickup_loc_time, pickup_to_drop_loc_time) = self.next_state_func(state, action, Time_matrix)
-        reward = self.reward_func(state, action, curr_to_pickup_loc_time, pickup_to_drop_loc_time)
+
+        isActionOffline = False
 
         if action in [(0, 0)]:
+            isActionOffline = True
             total_worked_hours = 1
         else:
             total_worked_hours = curr_to_pickup_loc_time + pickup_to_drop_loc_time
+
+        reward = self.reward_func(isActionOffline, curr_to_pickup_loc_time, pickup_to_drop_loc_time)
 
         return (next_state, reward, total_worked_hours)
 
