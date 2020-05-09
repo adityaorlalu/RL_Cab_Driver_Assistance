@@ -4,8 +4,8 @@ import numpy as np
 import math
 import random
 
-# random.seed(0)
-# np.random.seed(0)
+random.seed(0)
+np.random.seed(0)
 
 # Defining hyperparameters
 m = 5 # number of cities, ranges from 1 ..... m
