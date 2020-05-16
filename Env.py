@@ -79,6 +79,7 @@ class CabDriver():
         # This was done for faster processing rather than using if-else check
         requests = np.random.poisson(poisson_mean.get(str(location)))
 
+        # make sure request is not 0 so agent always gets a request
         if requests == 0:
             requests = poisson_mean.get(str(location))
 
@@ -86,8 +87,12 @@ class CabDriver():
         if requests > 15:
             requests = 15
 
+        # get a random drive request based on request count
         possible_actions_index = random.sample(range(1, (m-1) * m + 1), requests)
         actions = [self.action_space[i] for i in possible_actions_index]
+
+        # Note: appending offline action only for the possible index, not for possible index.
+        # Idea here is get to offline action only based on the max q-value. 
         actions.append((0,0))
 
         return (tuple(possible_actions_index), tuple(actions))
@@ -166,18 +171,26 @@ class CabDriver():
 
     
     def step(self, state, action, Time_matrix):
+        """ function to take an action from a given state"""
+        # return new state, time from current car location to pickup location and time from pickup to drop location
         (next_state, curr_to_pickup_loc_time, pickup_to_drop_loc_time) = self.next_state_func(state, action, Time_matrix)
 
+        # initialise 
         isActionOffline = False
 
+        # if action is offline.
         if action in [(0, 0)]:
             isActionOffline = True
+            # total worked hours would be 1 as driver will get request only next hour. And agent has opted not to take a ride.
             total_worked_hours = 1
         else:
+            # calculate total worked hours
             total_worked_hours = curr_to_pickup_loc_time + pickup_to_drop_loc_time
 
+        # calculate rewards.
         reward = self.reward_func(isActionOffline, curr_to_pickup_loc_time, pickup_to_drop_loc_time)
 
+        # return next state, rewards, total time to server a ride
         return (next_state, reward, total_worked_hours)
 
 
